@@ -13,8 +13,8 @@ const (
 
 //RSAKeyPair holds an RSA key pair.
 type RSAKeyPair struct {
-	proverKey   *rsa.PrivateKey
-	verifierKey rsa.PublicKey
+	ProverKey   *rsa.PrivateKey
+	VerifierKey rsa.PublicKey
 }
 
 //GetRSAKeyPair returns an RSA key pair, using a rand.Reader
@@ -28,8 +28,8 @@ func GetRSAKeyPair() (keyPair RSAKeyPair) {
 
 	publicKey := privateKey.PublicKey
 
-	keyPair.proverKey = privateKey
-	keyPair.verifierKey = publicKey
+	keyPair.ProverKey = privateKey
+	keyPair.VerifierKey = publicKey
 
 	return keyPair
 }
