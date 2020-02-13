@@ -81,7 +81,7 @@ func handleConnection(conn net.Conn) {
 		response = err.Error()
 	}
 
-	conn.Write([]byte(fmt.Sprintln("Server", conn.LocalAddr(), "replied:", response)))
+	conn.Write([]byte(fmt.Sprintln("Server", conn.LocalAddr(), "replied:", response, "\n")))
 
 	handleConnection(conn)
 }
@@ -116,7 +116,7 @@ func helpCommand() (response string) {
 	for _, command := range commands {
 		response += fmt.Sprintf("Name: %s | Description: %s\n", command.Name, command.Description)
 	}
-	return response
+	return response[:len(response)-1]
 }
 
 func submitSecretCommand(message string) (response string, err error) {
