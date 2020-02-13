@@ -2,6 +2,7 @@ package zeroknowledge
 
 import (
 	"crypto/rsa"
+	"fmt"
 	"log"
 
 	"github.com/tuckyapps/zero-knowledge-proof/internal/zkcrypto"
@@ -15,6 +16,10 @@ type AuxUUIDKeyPair struct {
 	VerifierKey rsa.PublicKey
 }
 
+func (aux AuxUUIDKeyPair) String() string {
+	return fmt.Sprint("uuid:", aux.UUID, "proverKey:", aux.ProverKey, "verifierKey:", aux.VerifierKey)
+}
+
 var db zkdb.DB
 
 //Init intializes the zero knowledge implementation with the database to be used.
@@ -25,9 +30,9 @@ func Init(database zkdb.DB) (err error) {
 }
 
 //SubmitSecret receives a secret by the prover, store it in the database,
-//and returns a keypair with his private key
-//and the public key the verifier must use to verify a secret.
-func SubmitSecret(secret string) (auxKeyPair AuxUUIDKeyPair) {
+//and returns a uuid and keypair with prover key
+//and the verifier key the verifier must use to verify a secret.
+func SubmitSecret(secret string) (auxKeyPair AuxUUIDKeyPair, err error) {
 	var newTableRow zkdb.TableRow
 	keyPair := zkcrypto.GetRSAKeyPair()
 	newTableRow.HashedSecret = zkcrypto.GetSecretHash(secret)
@@ -43,19 +48,19 @@ func SubmitSecret(secret string) (auxKeyPair AuxUUIDKeyPair) {
 	auxKeyPair.ProverKey = insertedRow.ProverKey
 	auxKeyPair.VerifierKey = insertedRow.VerifierKey
 
-	return auxKeyPair
+	return auxKeyPair, nil
 }
 
 //VerifySecret receives a secret, a uuid and a verifier key,
 //checks if the secret is the same as the one stored for that verifier key.
 //If the secret is the same, stores in database true and returns, in the opposite case,
 //stores and returns false.
-func VerifySecret(secret string, uuid string, verifierKey rsa.PublicKey) (doSecretsMatch bool) {
+func VerifySecret(secret string, uuid string, verifierKey rsa.PublicKey) (doSecretsMatch bool, err error) {
 	row, err := db.GetRowByUUID(uuid)
 
 	if err != nil {
 		log.Println("There was an error when VerifySecret:", err.Error())
-		return false
+		return false, err
 	}
 
 	toVerifyHash := zkcrypto.GetSecretHash(secret)
@@ -69,24 +74,25 @@ func VerifySecret(secret string, uuid string, verifierKey rsa.PublicKey) (doSecr
 		db.UpdateRow(uuid, row)
 	}
 
-	return doSecretsMatch
+	return doSecretsMatch, nil
 }
 
 //GetSecretState receives a uuid and private key from the prover and
 //returns if the secrets match or not, or if still waiting for
 //verifier to submit its secret.
-func GetSecretState(uuid string, proverKey *rsa.PrivateKey) (currentState string) {
+func GetSecretState(uuid string, proverKey *rsa.PrivateKey) (currentState string, err error) {
 
 	row, err := db.GetRowByUUID(uuid)
 	currentState = zkdb.NoMatch.String()
 
 	if err != nil {
 		log.Println("There was an error when GetSecretState:", err.Error())
+		return
 	}
 
 	if proverKey == row.ProverKey {
 		currentState = row.SecretState.String()
 	}
 
-	return currentState
+	return currentState, nil
 }
