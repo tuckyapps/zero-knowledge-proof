@@ -1,4 +1,4 @@
-package crypto
+package zkcrypto
 
 import (
 	"crypto/rsa"
@@ -11,10 +11,10 @@ const (
 	rsaGenBits = 2048
 )
 
-//RSAKeyPair holds an RSA key pair.
+//RSAKeyPair holds an RSA key pair and a UUID.
 type RSAKeyPair struct {
-	privateKey *rsa.PrivateKey
-	publicKey  rsa.PublicKey
+	ProverKey   *rsa.PrivateKey
+	VerifierKey rsa.PublicKey
 }
 
 //GetRSAKeyPair returns an RSA key pair, using a rand.Reader
@@ -28,8 +28,8 @@ func GetRSAKeyPair() (keyPair RSAKeyPair) {
 
 	publicKey := privateKey.PublicKey
 
-	keyPair.privateKey = privateKey
-	keyPair.publicKey = publicKey
+	keyPair.ProverKey = privateKey
+	keyPair.VerifierKey = publicKey
 
 	return keyPair
 }
