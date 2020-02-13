@@ -10,10 +10,11 @@ import (
 
 //DB represents secrets repository interface
 type DB interface {
+	Init()
 	InsertNewRow(newRow TableRow) (insertedRow TableRow, err error)
 	GetRowByUUID(uuid string) (returnedRow TableRow, err error)
 	DeleteRow(uuid string) (result bool, err error)
-	UpdateSecret(uuid string, secret string) (modifiedRow TableRow, err error)
+	UpdateRow(uuid string, toUpdateRow TableRow) (modifiedRow TableRow, err error)
 }
 
 //MemoryDB is used to store a secrets repository in memory.
@@ -34,10 +35,19 @@ type TableRow struct {
 type SecretState int
 
 const (
-	match SecretState = 1 + iota
-	noMatch
-	awaitingForVerifierSubmission
+	//Match refers to a matching secret state.
+	Match SecretState = 1 + iota
+
+	//NoMatch refers to an unmatching secret state.
+	NoMatch
+
+	//AwaitingForVerifierSubmission refers to be waiting for verifier submission.
+	AwaitingForVerifierSubmission
 )
+
+func (ss SecretState) String() string {
+	return [...]string{"Match", "NoMatch", "AwaitingForVerifierSubmission"}[ss]
+}
 
 //Init inits the memory db.
 func (mdb MemoryDB) Init() {
@@ -54,7 +64,7 @@ func (mdb MemoryDB) InsertNewRow(newRow TableRow) (insertedRow TableRow, err err
 		return TableRow{}, err
 	}
 	newRow.UUID = uuid.String()
-	newRow.SecretState = awaitingForVerifierSubmission
+	newRow.SecretState = AwaitingForVerifierSubmission
 	mdb.table[newRow.UUID] = newRow
 
 	return newRow, nil
@@ -84,13 +94,11 @@ func (mdb MemoryDB) DeleteRow(uuid string) (result bool, err error) {
 	return result, err
 }
 
-//UpdateSecret receives a UUID string and a secret and updates it.
+//UpdateRow receives a UUID string and a row and updates it.
 //In case of success, returns the updated row, else, error.
-func (mdb MemoryDB) UpdateSecret(uuid string, secret string) (modifiedRow TableRow, err error) {
-	if row, doesExist := mdb.table[uuid]; doesExist {
-		modifiedRow = row
-		modifiedRow.HashedSecret = secret
-		mdb.table[uuid] = modifiedRow
+func (mdb MemoryDB) UpdateRow(uuid string, toUpdateRow TableRow) (modifiedRow TableRow, err error) {
+	if _, doesExist := mdb.table[uuid]; doesExist {
+		mdb.table[uuid] = toUpdateRow
 	} else {
 		modifiedRow = TableRow{}
 		err = errors.New("A row for the provided UUID could not be found")
