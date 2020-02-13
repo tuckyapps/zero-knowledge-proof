@@ -1,7 +1,6 @@
 package zkdb
 
 import (
-	"crypto/rsa"
 	"errors"
 	"log"
 
@@ -10,7 +9,7 @@ import (
 
 //DB represents secrets repository interface
 type DB interface {
-	Init()
+	Init() (err error)
 	InsertNewRow(newRow TableRow) (insertedRow TableRow, err error)
 	GetRowByUUID(uuid string) (returnedRow TableRow, err error)
 	DeleteRow(uuid string) (result bool, err error)
@@ -19,15 +18,15 @@ type DB interface {
 
 //MemoryDB is used to store a secrets repository in memory.
 type MemoryDB struct {
-	table map[string]TableRow
+	table map[string]*TableRow
 }
 
 //TableRow represents a DB table row.
 type TableRow struct {
 	UUID         string
 	HashedSecret string
-	VerifierKey  rsa.PublicKey
-	ProverKey    *rsa.PrivateKey
+	VerifierKey  string
+	ProverKey    string
 	SecretState  SecretState
 }
 
@@ -46,17 +45,18 @@ const (
 )
 
 func (ss SecretState) String() string {
-	return [...]string{"Match", "NoMatch", "AwaitingForVerifierSubmission"}[ss]
+	return [...]string{"", "Match", "NoMatch", "AwaitingForVerifierSubmission"}[ss]
 }
 
 //Init inits the memory db.
-func (mdb MemoryDB) Init() {
-	mdb.table = make(map[string]TableRow)
+func (mdb *MemoryDB) Init() (err error) {
+	mdb.table = make(map[string]*TableRow)
+	return nil
 }
 
 //InsertNewRow receives a TableRow and inserts its content in the db.
 //In case of success, returns the row, else, returns error.
-func (mdb MemoryDB) InsertNewRow(newRow TableRow) (insertedRow TableRow, err error) {
+func (mdb *MemoryDB) InsertNewRow(newRow TableRow) (insertedRow TableRow, err error) {
 	uuid, err := uuid.NewV4()
 
 	if err != nil {
@@ -65,15 +65,15 @@ func (mdb MemoryDB) InsertNewRow(newRow TableRow) (insertedRow TableRow, err err
 	}
 	newRow.UUID = uuid.String()
 	newRow.SecretState = AwaitingForVerifierSubmission
-	mdb.table[newRow.UUID] = newRow
+	mdb.table[newRow.UUID] = &newRow
 
 	return newRow, nil
 }
 
 //GetRowByUUID receives a UUID string and returns a row if exists.
-func (mdb MemoryDB) GetRowByUUID(uuid string) (returnedRow TableRow, err error) {
+func (mdb *MemoryDB) GetRowByUUID(uuid string) (returnedRow TableRow, err error) {
 	if row, doesExist := mdb.table[uuid]; doesExist {
-		returnedRow = row
+		returnedRow = *row
 	} else {
 		returnedRow = TableRow{}
 		err = errors.New("A row for the provided UUID could not be found")
@@ -83,7 +83,7 @@ func (mdb MemoryDB) GetRowByUUID(uuid string) (returnedRow TableRow, err error) 
 
 //DeleteRow receives a UUID string and deletes the row if existent.
 //Returns true if success or false and error if not.
-func (mdb MemoryDB) DeleteRow(uuid string) (result bool, err error) {
+func (mdb *MemoryDB) DeleteRow(uuid string) (result bool, err error) {
 	if _, doesExist := mdb.table[uuid]; doesExist {
 		delete(mdb.table, uuid)
 		result = true
@@ -96,9 +96,9 @@ func (mdb MemoryDB) DeleteRow(uuid string) (result bool, err error) {
 
 //UpdateRow receives a UUID string and a row and updates it.
 //In case of success, returns the updated row, else, error.
-func (mdb MemoryDB) UpdateRow(uuid string, toUpdateRow TableRow) (modifiedRow TableRow, err error) {
+func (mdb *MemoryDB) UpdateRow(uuid string, toUpdateRow TableRow) (modifiedRow TableRow, err error) {
 	if _, doesExist := mdb.table[uuid]; doesExist {
-		mdb.table[uuid] = toUpdateRow
+		mdb.table[uuid] = &toUpdateRow
 	} else {
 		modifiedRow = TableRow{}
 		err = errors.New("A row for the provided UUID could not be found")
