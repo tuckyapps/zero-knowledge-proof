@@ -65,10 +65,10 @@ func ParseRsaProverKeyFromPemStr(privPEM string) (*rsa.PrivateKey, error) {
 }
 
 //ExportRsaVerifierKeyAsPemStr is used to export an rsa verifier key as string.
-func ExportRsaVerifierKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
+func ExportRsaVerifierKeyAsPemStr(pubkey *rsa.PublicKey) string {
 	pubkeyBytes, err := x509.MarshalPKIXPublicKey(pubkey)
 	if err != nil {
-		return "", err
+		return ""
 	}
 	pubkeyPem := pem.EncodeToMemory(
 		&pem.Block{
@@ -77,7 +77,7 @@ func ExportRsaVerifierKeyAsPemStr(pubkey *rsa.PublicKey) (string, error) {
 		},
 	)
 
-	return string(pubkeyPem), nil
+	return string(pubkeyPem)
 }
 
 //ParseRsaVerifierKeyFromPemStr is used to import an rsa verifier key from string.

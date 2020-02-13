@@ -2,13 +2,13 @@ package zktcp
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"strings"
 
 	zeroknowledge "github.com/tuckyapps/zero-knowledge-proof/internal/zero_knowledge"
-	"github.com/tuckyapps/zero-knowledge-proof/internal/zkcrypto"
 )
 
 const (
@@ -25,16 +25,20 @@ type command struct {
 var commands = []command{
 	{
 		Name:        "help",
-		Description: "Returns the info of the available commands."},
+		Description: "Returns the info of the available commands.",
+	},
 	{
 		Name:        "submitsecret",
-		Description: "Receives a secret by the prover and returns uuid with prover and verifier keys to perform other operations. Example: submitsecret:::secret."},
+		Description: "Receives a secret by the prover and returns uuid with prover and verifier keys to perform other operations. Example: submitsecret:::secret.",
+	},
 	{
 		Name:        "verifysecret",
-		Description: "Receives a secret, a uuid and a verifier key, and returns whether the secrets match or not. Example: verifysecret:::secret:::uuid:::verifierkey."},
+		Description: "Receives a secret, a uuid and a verifier key, and returns whether the secrets match or not. Example: verifysecret:::secret:::uuid:::verifierkey.",
+	},
 	{
 		Name:        "getsecretstate",
-		Description: "Receives a uuid and a prover key, and returns wheter the secrets match, not match, or if still missing for verifier submission. Example: getsecretstate:::uuid:::proverkey"},
+		Description: "Receives a uuid and a prover key, and returns wheter the secrets match, not match, or if still missing for verifier submission. Example: getsecretstate:::uuid:::proverkey",
+	},
 }
 
 var shouldExit bool
@@ -61,16 +65,16 @@ func Init() (err error) {
 
 func handleConnection(conn net.Conn) {
 	bufferBytes, err := bufio.NewReader(conn).ReadBytes('\n')
+	clientAddr := conn.RemoteAddr().String()
 
 	if err != nil {
-		log.Println("The client has left..")
+		log.Println(fmt.Sprintln("The client ", clientAddr, " has left.."))
 		conn.Close()
 		return
 	}
 
 	message := string(bufferBytes)
-	clientAddr := conn.RemoteAddr().String()
-	log.Println(clientAddr, "says:", message)
+	log.Println(clientAddr, " says: ", message)
 
 	response, err := handleCommand(message)
 	if err != nil {
@@ -83,7 +87,14 @@ func handleConnection(conn net.Conn) {
 }
 
 func handleCommand(message string) (response string, err error) {
-	command := strings.Split(message, commandSeparator)[0]
+	var command string
+	message = message[:len(message)-1]
+
+	if message != "help" {
+		command = strings.Split(message, commandSeparator)[0]
+	} else {
+		command = "help"
+	}
 
 	switch command {
 	case "help":
@@ -95,18 +106,25 @@ func handleCommand(message string) (response string, err error) {
 	case "getsecretstate":
 		response, err = getSecretStateCommand(message)
 	default:
+		response = "Unrecognized command..." + helpCommand()
 	}
 	return
 }
 
 func helpCommand() (response string) {
+	response = "\nAVAILABLE COMMANDS\n"
 	for _, command := range commands {
-		response = fmt.Sprintf("Name: %s | Description: %s\n", command.Name, command.Description)
+		response += fmt.Sprintf("Name: %s | Description: %s\n", command.Name, command.Description)
 	}
 	return response
 }
 
 func submitSecretCommand(message string) (response string, err error) {
+	err = validateMessageHasEnoughParameters(message, 2)
+	if err != nil {
+		return err.Error(), err
+	}
+
 	secret := strings.Split(message, commandSeparator)[1]
 	auxKeyPair, err := zeroknowledge.SubmitSecret(secret)
 
@@ -117,16 +135,21 @@ func submitSecretCommand(message string) (response string, err error) {
 }
 
 func verifySecretCommand(message string) (response string, err error) {
+	err = validateMessageHasEnoughParameters(message, 4)
+	if err != nil {
+		return err.Error(), err
+	}
+
 	response = "No Match"
 	parsedMessage := strings.Split(message, commandSeparator)
 	secret := parsedMessage[1]
 	uuid := parsedMessage[2]
-	verifierKey, err := zkcrypto.ParseRsaVerifierKeyFromPemStr(parsedMessage[3])
+	verifierKey := parsedMessage[3]
 	if err != nil {
 		return
 	}
 
-	doSecretsMatch, err := zeroknowledge.VerifySecret(secret, uuid, *verifierKey)
+	doSecretsMatch, err := zeroknowledge.VerifySecret(secret, uuid, verifierKey)
 	if err != nil {
 		return
 	}
@@ -140,10 +163,15 @@ func verifySecretCommand(message string) (response string, err error) {
 }
 
 func getSecretStateCommand(message string) (response string, err error) {
+	err = validateMessageHasEnoughParameters(message, 3)
+	if err != nil {
+		return err.Error(), err
+	}
+
 	response = "No Match"
 	parsedMessage := strings.Split(message, commandSeparator)
 	uuid := parsedMessage[1]
-	proverKey, err := zkcrypto.ParseRsaProverKeyFromPemStr(parsedMessage[2])
+	proverKey := parsedMessage[2]
 	if err != nil {
 		return
 	}
@@ -153,5 +181,13 @@ func getSecretStateCommand(message string) (response string, err error) {
 		return
 	}
 
+	return
+}
+
+func validateMessageHasEnoughParameters(message string, minParamenters int) (err error) {
+	parsedMessage := strings.Split(message, commandSeparator)
+	if len(parsedMessage) < minParamenters {
+		err = errors.New("Message does not have enough paramenters")
+	}
 	return
 }

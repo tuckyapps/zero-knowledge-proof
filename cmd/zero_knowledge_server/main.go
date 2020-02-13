@@ -7,7 +7,7 @@ import zeroknowledge "github.com/tuckyapps/zero-knowledge-proof/internal/zero_kn
 import "github.com/tuckyapps/zero-knowledge-proof/internal/zktcp"
 
 func main() {
-	db := new(zkdb.MemoryDB)
+	var db = new(zkdb.MemoryDB)
 	err := zeroknowledge.Init(db)
 	checkErr(err)
 

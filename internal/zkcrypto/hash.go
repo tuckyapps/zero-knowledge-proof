@@ -16,3 +16,12 @@ func GetSecretHash(secret string) (hash string) {
 
 	return string(hashedSecretBytes)
 }
+
+//CompareSecretAndHash returns true if they match or false if they do not.
+func CompareSecretAndHash(secret string, hash string) (result bool) {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(secret))
+	if err == nil {
+		result = true
+	}
+	return
+}
