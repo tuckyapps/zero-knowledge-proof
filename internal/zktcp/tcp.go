@@ -122,7 +122,7 @@ func helpCommand() (response string) {
 func submitSecretCommand(message string) (response string, err error) {
 	err = validateMessageHasEnoughParameters(message, 2)
 	if err != nil {
-		return err.Error(), err
+		return
 	}
 
 	secret := strings.Split(message, commandSeparator)[1]

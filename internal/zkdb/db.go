@@ -3,6 +3,7 @@ package zkdb
 import (
 	"errors"
 	"log"
+	"time"
 
 	"github.com/gofrs/uuid"
 )
@@ -23,11 +24,15 @@ type MemoryDB struct {
 
 //TableRow represents a DB table row.
 type TableRow struct {
-	UUID         string
-	HashedSecret string
-	VerifierKey  string
-	ProverKey    string
-	SecretState  SecretState
+	UUID                  string
+	HashedSecret          string
+	VerifierKey           string
+	ProverKey             string
+	SecretState           SecretState
+	LastProverAttempt     time.Time
+	LastVerifierAttempt   time.Time
+	ProverAttemptsCount   int
+	VerifierAttemptsCount int
 }
 
 //SecretState is the enum used to hold the secret state.

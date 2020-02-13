@@ -4,10 +4,18 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/tuckyapps/zero-knowledge-proof/internal/zkcrypto"
 	"github.com/tuckyapps/zero-knowledge-proof/internal/zkdb"
+	"github.com/tuckyapps/zero-knowledge-proof/internal/zkerror"
 )
+
+const (
+	maxAttemptsPerHour = 5
+)
+
+var db zkdb.DB
 
 //AuxUUIDKeyPair is just used to hold the data returned when submiting a secret.
 type AuxUUIDKeyPair struct {
@@ -19,8 +27,6 @@ type AuxUUIDKeyPair struct {
 func (aux AuxUUIDKeyPair) String() string {
 	return fmt.Sprint("uuid: ", aux.UUID, " proverKey: ", aux.ProverKey, " verifierKey: ", aux.VerifierKey)
 }
-
-var db zkdb.DB
 
 //Init intializes the zero knowledge implementation with the database to be used.
 func Init(database zkdb.DB) (err error) {
@@ -38,6 +44,8 @@ func SubmitSecret(secret string) (auxKeyPair AuxUUIDKeyPair, err error) {
 	newTableRow.HashedSecret = zkcrypto.GetSecretHash(secret)
 	newTableRow.ProverKey = strings.ReplaceAll(zkcrypto.ExportRsaProverKeyAsPemStr(keyPair.ProverKey), "\n", "")[:200]
 	newTableRow.VerifierKey = strings.ReplaceAll(zkcrypto.ExportRsaVerifierKeyAsPemStr(&keyPair.VerifierKey), "\n", "")[:200]
+	newTableRow.LastProverAttempt = time.Now()
+	newTableRow.LastVerifierAttempt = time.Now()
 	insertedRow, err := db.InsertNewRow(newTableRow)
 
 	if err != nil {
@@ -64,18 +72,27 @@ func VerifySecret(secret string, uuid string, verifierKey string) (doSecretsMatc
 		return false, err
 	}
 
+	err = validateVelocityCheck(row.LastVerifierAttempt, row.VerifierAttemptsCount)
+
+	if err != nil {
+		return
+	}
+
+	row.LastVerifierAttempt = time.Now()
 	if !doSecretsMatch {
 		doHashesMatch := zkcrypto.CompareSecretAndHash(secret, row.HashedSecret)
 		if verifierKey == row.VerifierKey {
 			if doHashesMatch {
 				row.SecretState = zkdb.Match
 				doSecretsMatch = true
-			} else {
-				row.SecretState = zkdb.NoMatch
+				row.VerifierAttemptsCount = 0
 			}
-			db.UpdateRow(uuid, row)
+		} else {
+			row.VerifierAttemptsCount++
+			row.SecretState = zkdb.NoMatch
 		}
 	}
+	db.UpdateRow(uuid, row)
 
 	return doSecretsMatch, nil
 }
@@ -84,7 +101,6 @@ func VerifySecret(secret string, uuid string, verifierKey string) (doSecretsMatc
 //returns if the secrets match or not, or if still waiting for
 //verifier to submit its secret.
 func GetSecretState(uuid string, proverKey string) (currentState string, err error) {
-
 	row, err := db.GetRowByUUID(uuid)
 	currentState = zkdb.NoMatch.String()
 
@@ -93,9 +109,29 @@ func GetSecretState(uuid string, proverKey string) (currentState string, err err
 		return
 	}
 
+	err = validateVelocityCheck(row.LastProverAttempt, row.ProverAttemptsCount)
+
 	if proverKey == row.ProverKey {
 		currentState = row.SecretState.String()
+		row.ProverAttemptsCount = 0
+	} else {
+		row.ProverAttemptsCount++
+
+	}
+	row.LastProverAttempt = time.Now()
+	db.UpdateRow(uuid, row)
+
+	if err != nil {
+		return
 	}
 
 	return currentState, nil
+}
+
+//validateVelocityCheck checks if the user has attempted to perform an operation more than maxAttemptsPerHour in one hour.
+func validateVelocityCheck(lastAttempt time.Time, attemptsCount int) (err error) {
+	if lastAttempt.Sub(time.Now()).Hours() < 1 && attemptsCount >= maxAttemptsPerHour {
+		err = zkerror.ErrUserHasReachedTheMaximumNumberOfAttempts
+	}
+	return
 }
