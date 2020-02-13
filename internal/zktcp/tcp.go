@@ -72,14 +72,41 @@ func handleConnection(conn net.Conn) {
 	clientAddr := conn.RemoteAddr().String()
 	log.Println(clientAddr, "says:", message)
 
-	response := fmt.Sprintln(message)
+	response, err := handleCommand(message)
+	if err != nil {
+		response = err.Error()
+	}
 
 	conn.Write([]byte(fmt.Sprintln("Server", conn.LocalAddr(), "replied:", response)))
 
 	handleConnection(conn)
 }
 
-func submitSecret(message string) (response string, err error) {
+func handleCommand(message string) (response string, err error) {
+	command := strings.Split(message, commandSeparator)[0]
+
+	switch command {
+	case "help":
+		response = helpCommand()
+	case "submitsecret":
+		response, err = submitSecretCommand(message)
+	case "verifysecret":
+		response, err = verifySecretCommand(message)
+	case "getsecretstate":
+		response, err = getSecretStateCommand(message)
+	default:
+	}
+	return
+}
+
+func helpCommand() (response string) {
+	for _, command := range commands {
+		response = fmt.Sprintf("Name: %s | Description: %s\n", command.Name, command.Description)
+	}
+	return response
+}
+
+func submitSecretCommand(message string) (response string, err error) {
 	secret := strings.Split(message, commandSeparator)[1]
 	auxKeyPair, err := zeroknowledge.SubmitSecret(secret)
 
@@ -89,7 +116,7 @@ func submitSecret(message string) (response string, err error) {
 	return auxKeyPair.String(), nil
 }
 
-func verifySecret(message string) (response string, err error) {
+func verifySecretCommand(message string) (response string, err error) {
 	response = "No Match"
 	parsedMessage := strings.Split(message, commandSeparator)
 	secret := parsedMessage[1]
@@ -112,7 +139,7 @@ func verifySecret(message string) (response string, err error) {
 
 }
 
-func getSecretState(message string) (response string, err error) {
+func getSecretStateCommand(message string) (response string, err error) {
 	response = "No Match"
 	parsedMessage := strings.Split(message, commandSeparator)
 	uuid := parsedMessage[1]
