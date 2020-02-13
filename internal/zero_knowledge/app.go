@@ -18,9 +18,10 @@ type AuxUUIDKeyPair struct {
 var db zkdb.DB
 
 //Init intializes the zero knowledge implementation with the database to be used.
-func Init(database zkdb.DB) {
-	database.Init()
+func Init(database zkdb.DB) (err error) {
+	err = database.Init()
 	db = database
+	return err
 }
 
 //SubmitSecret receives a secret by the prover, store it in the database,

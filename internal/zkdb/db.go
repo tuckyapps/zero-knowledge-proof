@@ -10,7 +10,7 @@ import (
 
 //DB represents secrets repository interface
 type DB interface {
-	Init()
+	Init() (err error)
 	InsertNewRow(newRow TableRow) (insertedRow TableRow, err error)
 	GetRowByUUID(uuid string) (returnedRow TableRow, err error)
 	DeleteRow(uuid string) (result bool, err error)
@@ -50,8 +50,9 @@ func (ss SecretState) String() string {
 }
 
 //Init inits the memory db.
-func (mdb MemoryDB) Init() {
+func (mdb MemoryDB) Init() (err error) {
 	mdb.table = make(map[string]TableRow)
+	return nil
 }
 
 //InsertNewRow receives a TableRow and inserts its content in the db.
