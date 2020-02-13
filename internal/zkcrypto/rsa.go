@@ -11,7 +11,7 @@ const (
 	rsaGenBits = 2048
 )
 
-//RSAKeyPair holds an RSA key pair.
+//RSAKeyPair holds an RSA key pair and a UUID.
 type RSAKeyPair struct {
 	ProverKey   *rsa.PrivateKey
 	VerifierKey rsa.PublicKey
